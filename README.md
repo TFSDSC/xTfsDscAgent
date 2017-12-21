@@ -9,7 +9,7 @@ To start it is helpful to know about DSC and know how it works. [Here](https://d
 To write a config for your agent you must import this Module in your configuratoin.
 After this you can use the xTfsDscAgent to configure the agents. In the following table you can see what parameters we currently support:
 | Parameter | Requiered | Desciprion |
-|-----------|-----------|------------|
+| --------- | --------- | ---------- |
 | Agentfolder| true | The folder in this the agent will install. This is the key for DSC tho identify is the agent currently there|
 | Ensure | true | This is a default DSC Parameter, that describe if the configuration must add or remove the agent. |
 | serverUrl | true | This is the url for the VSTS or TFS server. Importent: only input the server url! Dont add the collection name or somethink like this! |
