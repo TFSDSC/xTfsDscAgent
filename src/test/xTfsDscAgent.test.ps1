@@ -143,7 +143,7 @@ Describe 'Test installation of TFSAgent' {
 
     AfterEach {
         Write-Verbose 'remove agent';
-        Slee
+        Sleep 1;
         if ((Test-Path ($xTfsAgentInstance.AgentFolder + '\config.cmd'))) {
             Start-Process -FilePath PowerShell -LoadUserProfile  -Verbose -Credential $xTfsAgentInstance.AgentUser -Wait -ArgumentList '-Command', ($xTfsAgentInstance.AgentFolder + '\config.cmd' + ' remove --unattended --auth integrated'); 
         }
