@@ -125,13 +125,13 @@ class xTfsDscAgent {
                 $result.Ensure = [Ensure]::Present;
             }
         }
-
-        $agentJsonFile = ConvertFrom-Json -InputObject (Get-Content ($this.AgentFolder + "\.agent") -Raw);
-        $result.WorkFolder = $agentJsonFile.workFolder;
-        $result.AgentName = $agentJsonFile.agentName;
-        $result.serverUrl = $agentJsonFile.serverUrl;
-
-        
+        $agentJsonpath = $this.AgentFolder + "\.agent";
+        if(Test-Path $agentJsonpath){
+            $agentJsonFile = ConvertFrom-Json -InputObject (Get-Content $agentJsonpath -Raw);
+            $result.WorkFolder = $agentJsonFile.workFolder;
+            $result.AgentName = $agentJsonFile.agentName;
+            $result.serverUrl = $agentJsonFile.serverUrl;
+        }
         return $result;
     }
 
