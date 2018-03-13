@@ -291,3 +291,4 @@ __pycache__/
 *.checksum
 **/sampleData
 **/testspace
+/out/**

@@ -2,17 +2,14 @@ enum Ensure{
     Absent
     Present
 }
-
 enum AuthMode{
     Integrated
     PAT
     Negotiate
     ALT
 }
-
 [DscResource()]
 class xTfsDscAgent {
-
     [DscProperty(Key)]
     [string]$AgentFolder
     [DscProperty(Mandatory)]
@@ -23,13 +20,14 @@ class xTfsDscAgent {
     # 2.117.2
     [DscProperty()]
     [string] $AgentVersion = "latest"
+    [DscProperty()]
     [string] $AgentPlatform = "win7-x64"
     [DscProperty()]
     [string] $AgentPool
     [DscProperty()]
     [string] $AgentName = "default"
     [DscProperty()]
-    [AuthMode] $AgentAuth = [AuthMode]::Integrated;
+    [int] $AgentAuth = [AuthMode]::Integrated;
     [DscProperty()]
     [bool] $AgentRunAsService = $false
     [DscProperty()]
@@ -40,8 +38,15 @@ class xTfsDscAgent {
     [string] $UserToken
     [DscProperty()]
     [bool] $ReplaceAgent = $false;
-    
+    [void] prepearePowershell() {
+        # I don't know why but sometimes the powershell can't create a secure channel.
+        # thanks to the help from here: https://stackoverflow.com/questions/41618766/powershell-invoke-webrequest-fails-with-ssl-tls-secure-channel
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor `
+            [Net.SecurityProtocolType]::Tls11 -bor `
+            [Net.SecurityProtocolType]::Tls                
+    }    
     [void] Set() {
+        $this.prepearePowershell();
         if ($this.Ensure -eq [Ensure]::Present) {
             if (!(Test-Path $this.AgentFolder)) {
                 mkdir $this.AgentFolder -Force;
@@ -50,16 +55,17 @@ class xTfsDscAgent {
                 #install
                 $zipPath = $this.AgentFolder + "\agent.zip";
                 $downloadUri = $this.getAgentDownLoadUri($this.serverUrl, $this.AgentVersion, $this.AgentPlatform);
-                $this.downloadAgnet($downloadUri, $zipPath);
+                $this.downloadAgent($downloadUri, $zipPath);
                 $this.unpackAgentZip($zipPath);
                 $this.installAgent($this.getConfigurationString());
-
                 #If the agent is configure as Service the agent starting after config automatic
                 if (!$this.AgentRunAsService) {
+                    Write-Verbose "Try to start agent, because it isn't a Windows service."
                     $this.startAgent();    
                 }
-                
-
+                else {
+                    Write-Verbose "Don't start the agent, because the windows service start automatic.";
+                }
             }
             else {
                 if (!$this.checkIfCurrentAgentVersionIsInstalled()) {
@@ -69,8 +75,7 @@ class xTfsDscAgent {
                 else {
                     # reconfiure   
                     $this.installAgent($this.getConfigurationString()); 
-                }
-                
+                }                
             }        
         }
         else {
@@ -79,9 +84,12 @@ class xTfsDscAgent {
             Remove-Item $this.AgentFolder -Recurse -Force;
         }
     }
-
     [bool] Test() {
-        $present = ((Test-Path $this.AgentFolder) -and (Get-ChildItem $this.AgentFolder).Length -gt 0);
+        $this.prepearePowershell();
+        $present = (
+            (Test-Path $this.AgentFolder) -and #the dsc have create the folder
+            (Get-ChildItem $this.AgentFolder).Length -gt 0 -and # the download was success
+            (Test-Path $this.AgentFolder + "\.agent")); # the agent is configured
         #TODO we must check the version number!
         if ($this.Ensure -eq [Ensure]::Present) {
             return $present;
@@ -91,31 +99,18 @@ class xTfsDscAgent {
         }
         return $false;
     }
-
     [xTfsDscAgent]Get() {
-        $result = @{
-            AgentFolder       = $this.AgentFolder
-            Ensure            = $null
-            serverUrl         = ""
-            AgentVersion      = ""
-            AgentPlatform     = ""
-            AgentPool         = ""
-            AgentName         = ""
-            AgentAuth         = $null
-            AgentRunAsService = $null
-            ReplaceAgent      = $false
-            WorkFolder        = ""
-            UserToken         = ""
-            AgentUser         = ""
-        };
+        $this.prepearePowershell();
+        $result = [xTfsDscAgent]::new();         
+        $result.AgentFolder = $this.AgentFolder        
+        $result.ReplaceAgent = $false        
         if ($this.Ensure -eq [Ensure]::Present) {
             if ($this.Test()) {
                 $result.Ensure = [Ensure]::Present;    
             }
             else {
                 $result.Ensure = [Ensure]::Absent;
-            }
-            
+            }            
         }
         else {
             if ($this.Test()) {
@@ -125,95 +120,94 @@ class xTfsDscAgent {
                 $result.Ensure = [Ensure]::Present;
             }
         }
-        $agentJsonpath = $this.AgentFolder + "\.agent";
-        if(Test-Path $agentJsonpath){
+        $agentJsonpath =  $this.AgentFolder + "\.agent";
+        if (Test-Path $agentJsonpath) {
             $agentJsonFile = ConvertFrom-Json -InputObject (Get-Content $agentJsonpath -Raw);
             $result.WorkFolder = $agentJsonFile.workFolder;
             $result.AgentName = $agentJsonFile.agentName;
             $result.serverUrl = $agentJsonFile.serverUrl;
+            $result.AgentPool = $agentJsonFile.poolId;
         }
         return $result;
     }
-
     [void] installAgent([string] $configureString) {
-        Write-Verbose ("Configure Agent with this parameters: " + $configureString);
-        $configProgrammPath = ($this.AgentFolder + "\config.cmd" + $configureString);
-        $powershellcommand = '"Invoke-Expression -Command ' + "'" + $configProgrammPath + "'" + ' -Verbose;"'
-        # Start-Job -ScriptBlock {Invoke-Expression $configProgrammPath -Verbose; } -Credential $this.AgentUser | Wait-Job | Receive-Job;
-        $output = Start-Process -FilePath PowerShell -LoadUserProfile  -Verbose -Credential $this.AgentUser -Wait -ArgumentList '-Command', $configProgrammPath; 
-        Write-Verbose ("" + $output);
-        Write-Verbose "Installation success";
+        Write-Verbose ("Configure Agent with this parameters: " + $configureString);        
+        $fullString = ($this.AgentFolder + "\config.cmd") + " " + $configureString;
+        $bytes = [System.Text.Encoding]::Unicode.GetBytes($fullString)
+        $encodedCommand = [Convert]::ToBase64String($bytes)
+        # & powershell.exe -encodedCommand $encodedCommand;
+        Write-Verbose ("Start installation: " + (Get-Date));
+        $process = Start-Process ($this.AgentFolder + "\config.cmd") -ArgumentList $configureString -Verbose -Debug -PassThru;
+        $process.WaitForExit();  
+        $testpath = $this.AgentFolder + ".agent";
+        Write-Verbose $testpath;
+        while ((Test-Path $testpath) -ne $true) {
+            Write-Verbose "Wait while agent will install.";
+            Start-Sleep -Seconds 5;   
+        }        
+        Write-Verbose ("Installation success" + (Get-Date));
     }
-
     [void] startAgent() {        
-        $startProgrammPath = $this.AgentFolder + "\run.cmd";
-        Start-Process -FilePath $startProgrammPath;
+        $startProgrammPath = $this.AgentFolder + "run.cmd";    
+        Invoke-Command -ScriptBlock {Start-Process $args[0]} -ArgumentList $startProgrammPath -InDisconnectedSession -ComputerName localhost    
         Write-Verbose "Start sucess";
     }
-
     [string] getRemoveString() {
         $removestring = " remove";
         $removestring += $this.authString();
         $removestring += " --unattended";
         return $removestring;
     }
-
     [string] getConfigurationString() {
         $configstring = "";
-        $configstring += " --url " + $this.serverUrl;
-        $configstring += " --pool " + $this.AgentPool;
-        $configstring += " --work " + $this.WorkFolder;
-
+        $configstring += (" --url " + $this.serverUrl);
+        $configstring += (" --pool " + $this.AgentPool);
+        $configstring += (" --work " + $this.WorkFolder);
         $configstring += $this.authString();
-
         if ($this.AgentRunAsService) {
-            if ($this.AgentAuth -ne [AuthMode]::Integrated) {
+            if ($this.AgentAuth -ne [int][AuthMode]::Integrated) {
                 throw "To run the agent as service your auth must be set to integrated"
             }
             if ([string]::IsNullOrEmpty($this.AgentUser.UserName) -or [string]::IsNullOrEmpty($this.AgentUser.GetNetworkCredential().Password)) {
                 throw "To run the agent as service you need a username and a password"
             }
             $configstring += " --runasservice";
-            $configstring += " --windowslogonaccount " + $this.AgentUser.UserName;
-            $configstring += " --windowslogonpassword " + $this.AgentUser.GetNetworkCredential().Password;
+            $configstring += (" --windowslogonaccount " + $this.AgentUser.UserName);
+            $configstring += (" --windowslogonpassword " + ($this.AgentUser.GetNetworkCredential().Password));
         }
-
         if ($this.AgentName -eq "Default") {
-            $configstring += " --agent " + $this.AgentName + "-" + (New-Guid).ToString()
+            $configstring += (" --agent " + $this.AgentName + "-" + ((New-Guid).ToString()))
         }
         else {
-            $configstring += " --agent " + $this.AgentName;
+            $configstring += (" --agent " + $this.AgentName);
         }
         if ($this.ReplaceAgent) {
             $configstring += " --replace"
         }
-
         $configstring += " --unattended";
         #accepteula isn't avaibeld in tfs agents for tfs 2018. The new parameter is --acceptTeeEula and must only use for linux and mac agents.
         #$configstring += " --accepteula";
-
         return $configstring;
     }
-
     [string] authString() {
         $configstring = "";
-        switch ($this.AgentAuth.ToString()) {
-            ([AuthMode]::Integrated).ToString() {
+        switch ($this.AgentAuth) {
+            ([int][AuthMode]::Integrated) {
                 $configstring += " --auth Integrated"
             }
-            ([AuthMode]::PAT).ToString() {
+            ([int][AuthMode]::PAT) {
                 if ($this.UserToken -eq $null -or $this.UserToken.Length -eq 0) {
                     throw "For PAT Auth you need a UserToken!"
                 }
                 $configstring += " --auth PAT --token " + $this.UserToken;
             }
-            ([AuthMode]::Negotiate).ToString() {
+            ([int][AuthMode]::Negotiate) {
                 if (![string]::IsNullOrEmpty($this.AgentUser.UserName) -and ![string]::IsNullOrEmpty($this.AgentUser.GetNetworkCredential().Password)) {
                     throw "For Negotiate Auth you need a username and a password!";
                 }
                 $configstring += " --auth Negotitate --username " + $this.AgentUser.UserName + " --password " + $this.AgentUser.GetNetworkCredential().Password;
             }
-            ([AuthMode]::ALT).ToString() {
+            ([int][AuthMode]::ALT) {
                 if (![string]::IsNullOrEmpty($this.AgentUser.UserName) -and ![string]::IsNullOrEmpty($this.AgentUser.GetNetworkCredential().Password)) {
                     throw "For ALT Auth you need a username and a password!";
                 }
@@ -225,7 +219,6 @@ class xTfsDscAgent {
         }
         return $configstring;
     }
-
     [bool] checkIfCurrentAgentVersionIsInstalled() {
         $version = $this.AgentVersion;
         if ($this.AgentVersion -eq "latest") {
@@ -235,16 +228,13 @@ class xTfsDscAgent {
         return $false;
         # we must find a way to do this!
     }
-
     [void] unpackAgentZip([string] $zipPath) {
         Expand-Archive -Path $zipPath -DestinationPath $this.AgentFolder
         Remove-Item $zipPath
     }
-
-    [void] downloadAgnet([string] $url, [string] $zipPath) {
-        Invoke-WebRequest $url -OutFile $zipPath -UseBasicParsing;
+    [void] downloadAgent([string] $url, [string] $zipPath) {        
+        Invoke-WebRequest $url -OutFile $zipPath -UseBasicParsing -Verbose;
     }
-
     [string] getAgentDownLoadUri([string] $serverUrl, [string] $version, [string] $platfrom) {        
         $allagents = $this.getAllAgentThatAreAvabiled($serverUrl);
         if ($version -eq "latest") {
@@ -252,16 +242,13 @@ class xTfsDscAgent {
         }
         else {
             return $this.getspecifivVersion($allagents, $version, $platfrom).downloadUrl;
-        }
-        
+        }        
     }
-
     [PsCustomObject] getLatestVersion([PSCustomObject] $agents, [string] $platfrom) {
         return ($agents | 
                 Where-Object {$_.type -eq "agent" -and $_.platform -eq $platfrom} | 
                 Sort-Object createdOn -Descending)[0];
     }
-
     [PsCustomObject] getspecifivVersion([PsCustomObject] $agents, [string] $version, [string] $platform) {
         $splitedVersion = $version.Split(".")
         $result = $agents | 
@@ -271,7 +258,6 @@ class xTfsDscAgent {
         }
         return ($result | Sort-Object createdOn -Descending)[0];  
     }
-
     [PSCustomObject] getAllAgentThatAreAvabiled([string] $serverUrl) {
         $agentVersionsUrl = $serverUrl + "_apis/distributedTask/packages/agent";
         $webResult = Invoke-WebRequest $agentVersionsUrl -Credential $this.AgentUser -UseBasicParsing;
