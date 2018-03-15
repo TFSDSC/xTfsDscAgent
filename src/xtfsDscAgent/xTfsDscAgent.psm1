@@ -103,23 +103,7 @@ class xTfsDscAgent {
         $this.prepearePowershell();
         $result = [xTfsDscAgent]::new();         
         $result.AgentFolder = $this.AgentFolder        
-        $result.ReplaceAgent = $false        
-        if ($this.Ensure -eq [Ensure]::Present) {
-            if ($this.Test()) {
-                $result.Ensure = [Ensure]::Present;    
-            }
-            else {
-                $result.Ensure = [Ensure]::Absent;
-            }            
-        }
-        else {
-            if ($this.Test()) {
-                $result.Ensure = [Ensure]::Absent;    
-            }
-            else {
-                $result.Ensure = [Ensure]::Present;
-            }
-        }
+        $result.ReplaceAgent = $false    
         $agentJsonpath =  $this.AgentFolder + "\.agent";
         if (Test-Path $agentJsonpath) {
             $agentJsonFile = ConvertFrom-Json -InputObject (Get-Content $agentJsonpath -Raw);
