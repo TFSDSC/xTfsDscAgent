@@ -112,6 +112,9 @@ class xTfsDscAgent {
             $result.serverUrl = $agentJsonFile.serverUrl;
             $result.AgentPool = $agentJsonFile.poolId;
         }
+        #Get agentVersion
+        $result.AgentVersion = & ($this.AgentFolder + "\config.cmd") ("--version");
+
         return $result;
     }
     [void] installAgent([string] $configureString) {
