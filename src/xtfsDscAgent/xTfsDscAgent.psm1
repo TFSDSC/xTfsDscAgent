@@ -89,7 +89,7 @@ class xTfsDscAgent {
         $present = (
             (Test-Path $this.AgentFolder) -and #the dsc have create the folder
             (Get-ChildItem $this.AgentFolder).Length -gt 0 -and # the download was success
-            (Test-Path $this.AgentFolder + "\.agent")); # the agent is configured
+            (Test-Path ($this.AgentFolder + "\.agent"))); # the agent is configured
         #TODO we must check the version number!
         if ($this.Ensure -eq [Ensure]::Present) {
             return $present;
