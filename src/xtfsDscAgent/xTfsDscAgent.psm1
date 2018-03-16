@@ -58,15 +58,7 @@ class xTfsDscAgent {
                     $downloadUri = $this.getAgentDownLoadUri($this.serverUrl, $this.AgentVersion, $this.AgentPlatform);
                     $this.downloadAgent($downloadUri, $zipPath);
                     $this.unpackAgentZip($zipPath);
-                    $this.installAgent($this.getConfigurationString());
-                    #If the agent is configure as Service the agent starting after config automatic
-                    if (!$this.AgentRunAsService) {
-                        Write-Verbose "Try to start agent, because it isn't a Windows service."
-                        $this.startAgent();    
-                    }
-                    else {
-                        Write-Verbose "Don't start the agent, because the windows service start automatic.";
-                    }
+                    $this.installAgent($this.getConfigurationString());                    
                 }
             }
             if (!$testResult.AgentVersionOkay) {
@@ -77,51 +69,22 @@ class xTfsDscAgent {
                 #then install again                
                 $this.Set();
             }
-
-            #TODO: do reconfiguration
-            if (!$testResult.AgentNameOkay) {
-                Write-Verbose ("The Agent Name isn't " + $this.AgentName);
+            
+            if (!$testResult.AgentNameOkay -or !$testResult.AgentWorkFolderOkay -or !$testResult.AgentUrlOkay) {
+                Write-Verbose ("The Agent isn't configured rigth.");
                 #here we must remove the agent
-                
-            }
-            if (!$testResult.AgentWorkFolderOkay) {
-                Write-Verbose ("The Agent Workfolder isn't " + $this.WorkFolder);
-                #check if we can reconfigure a running agent
-            }
-            if (!$testResult.AgentUrlOkay) {
-                Write-Verbose ("The Agent hasn't the '" + $this.serverUrl + "' as TFS / VSTS Url configured.");
-                #check if we can reconfigure a running agent
-            }
-    
-            if (!(Test-Path $this.AgentFolder)) {
-                mkdir $this.AgentFolder -Force;
-            }
-            if (!(Test-Path $this.AgentFolder) -or (Get-ChildItem $this.AgentFolder).Length -eq 0) {
-                #install
-                $zipPath = $this.AgentFolder + "\agent.zip";
-                $downloadUri = $this.getAgentDownLoadUri($this.serverUrl, $this.AgentVersion, $this.AgentPlatform);
-                $this.downloadAgent($downloadUri, $zipPath);
-                $this.unpackAgentZip($zipPath);
-                $this.installAgent($this.getConfigurationString());
-                #If the agent is configure as Service the agent starting after config automatic
-                if (!$this.AgentRunAsService) {
-                    Write-Verbose "Try to start agent, because it isn't a Windows service."
-                    $this.startAgent();    
-                }
-                else {
-                    Write-Verbose "Don't start the agent, because the windows service start automatic.";
-                }
+                $this.installAgent($this.getRemoveString());
+                $this.installAgent($this.getConfigurationString());                
+            }    
+            #If the agent is configure as Service the agent starting after config automatic
+            if (!$this.AgentRunAsService) {
+                Write-Verbose "Try to start agent, because it isn't a Windows service."
+                $this.startAgent();    
             }
             else {
-                if (!$this.checkIfCurrentAgentVersionIsInstalled()) {
-                    #install newer version
-                    #TODO: we don't know how
-                }
-                else {
-                    # reconfiure   
-                    $this.installAgent($this.getConfigurationString()); 
-                }                
-            }        
+                Write-Verbose "Don't start the agent, because the windows service start automatic.";
+            }
+                
         }
         else {
             #uninstall
@@ -180,7 +143,7 @@ class xTfsDscAgent {
         }
         return $result;
     }
-    [PSCustomObject] getTestResult(){
+    [PSCustomObject] getTestResult() {
         $result = [PSCustomObject]@{
             $AgentFolderOkay = $false,
             $AgentVersionOkay = $false,
