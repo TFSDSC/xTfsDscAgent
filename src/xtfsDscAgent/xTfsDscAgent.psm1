@@ -48,6 +48,51 @@ class xTfsDscAgent {
     [void] Set() {
         $this.prepearePowershell();
         if ($this.Ensure -eq [Ensure]::Present) {
+            $testResult = $this.getTestResult();
+            if (!$testResult.AgentFolderOkay) {
+                Write-Verbose "The AgentFolder doesn't exsists";
+                mkdir $this.AgentFolder -Force;
+                if (!(Test-Path $this.AgentFolder) -or (Get-ChildItem $this.AgentFolder).Length -eq 0) {
+                    #install
+                    $zipPath = $this.AgentFolder + "\agent.zip";
+                    $downloadUri = $this.getAgentDownLoadUri($this.serverUrl, $this.AgentVersion, $this.AgentPlatform);
+                    $this.downloadAgent($downloadUri, $zipPath);
+                    $this.unpackAgentZip($zipPath);
+                    $this.installAgent($this.getConfigurationString());
+                    #If the agent is configure as Service the agent starting after config automatic
+                    if (!$this.AgentRunAsService) {
+                        Write-Verbose "Try to start agent, because it isn't a Windows service."
+                        $this.startAgent();    
+                    }
+                    else {
+                        Write-Verbose "Don't start the agent, because the windows service start automatic.";
+                    }
+                }
+            }
+            if (!$testResult.AgentVersionOkay) {
+                Write-Verbose ("The Agent Version isn't " + $this.AgentVersion);                
+                #first uninstall current Agentversion
+                $this.installAgent($this.getRemoveString());
+                Remove-Item $this.AgentFolder -Recurse -Force;
+                #then install again                
+                $this.Set();
+            }
+
+            #TODO: do reconfiguration
+            if (!$testResult.AgentNameOkay) {
+                Write-Verbose ("The Agent Name isn't " + $this.AgentName);
+                #here we must remove the agent
+                
+            }
+            if (!$testResult.AgentWorkFolderOkay) {
+                Write-Verbose ("The Agent Workfolder isn't " + $this.WorkFolder);
+                #check if we can reconfigure a running agent
+            }
+            if (!$testResult.AgentUrlOkay) {
+                Write-Verbose ("The Agent hasn't the '" + $this.serverUrl + "' as TFS / VSTS Url configured.");
+                #check if we can reconfigure a running agent
+            }
+    
             if (!(Test-Path $this.AgentFolder)) {
                 mkdir $this.AgentFolder -Force;
             }
@@ -84,61 +129,27 @@ class xTfsDscAgent {
             Remove-Item $this.AgentFolder -Recurse -Force;
         }
     }
-
-    
-
     [bool] Test() {
-        $AgentFolderOkay = $false;    
-        $AgentVersionOkay = $false;
-        $AgentNameOkay = $false;
-        $AgentWorkFolderOkay = $false;
-        $AgentUrlOkay = $false;
         $this.prepearePowershell();
-        $getResult = $this.Get();
-        if ((Test-Path $this.AgentFolder)) {
-            $AgentFolderOkay = $true;
-        }
-        if ($this.AgentName -eq "default") {
-            $AgentNameOkay = $getResult.AgentName.Contains("default");
-        }
-        else {
-            $AgentNameOkay = $getResult.AgentName -eq $this.AgentName;
-        }        
-        $AgentWorkFolderOkay = $this.WorkFolder -eq $getResult.WorkFolder;
-        $AgentUrlOkay = $this.serverUrl -eq $getResult.serverUrl;
-        if ($this.AgentVersion -eq "latest") {
-            if ($this.serverUrl.Length -gt 0) {
-                $versionObject = $this.getLatestVersion($this.getAllAgentThatAreAvabiled($this.serverUrl), $this.AgentPlatform).version;
-                $version = $versionObject.major.ToString() + "." + $versionObject.minor.ToString() + "." + $versionObject.patch.ToString();
-                $AgentVersionOkay = $getResult.AgentVersion -eq $version;
-            }
-            else {
-                $AgentVersionOkay = $false;
-            }
-            
-        }
-        else {
-            $AgentVersionOkay = $this.AgentVersion -eq $getResult.AgentVersion;
-        }
-
+        $testResult = $this.getTestResult();
         $isPresent = $true;
-        if (!$AgentFolderOkay) {
+        if (!$testResult.AgentFolderOkay) {
             Write-Verbose "The AgentFolder doesn't exsists";
             $isPresent = $false;
         }
-        if (!$AgentVersionOkay) {
+        if (!$testResult.AgentVersionOkay) {
             Write-Verbose ("The Agent Version isn't " + $this.AgentVersion);
             $isPresent = $false;
         }
-        if (!$AgentNameOkay) {
+        if (!$testResult.AgentNameOkay) {
             Write-Verbose ("The Agent Name isn't " + $this.AgentName);
             $isPresent = $false;
         }
-        if (!$AgentWorkFolderOkay) {
+        if (!$testResult.AgentWorkFolderOkay) {
             Write-Verbose ("The Agent Workfolder isn't " + $this.WorkFolder);
             $isPresent = $false;
         }
-        if (!$AgentUrlOkay) {
+        if (!$testResult.AgentUrlOkay) {
             Write-Verbose ("The Agent hasn't the '" + $this.serverUrl + "' as TFS / VSTS Url configured.");
             $isPresent = $false;
         }
@@ -169,6 +180,43 @@ class xTfsDscAgent {
         }
         return $result;
     }
+    [PSCustomObject] getTestResult(){
+        $result = [PSCustomObject]@{
+            $AgentFolderOkay = $false,
+            $AgentVersionOkay = $false,
+            $AgentNameOkay = $false,
+            $AgentWorkFolderOkay = $false,
+            $AgentUrlOkay = $false
+        }
+        $getResult = $this.Get();
+        if ((Test-Path $this.AgentFolder)) {
+            $result.AgentFolderOkay = $true;
+        }
+        if ($this.AgentName -eq "default") {
+            $result.AgentNameOkay = $getResult.AgentName.Contains("default");
+        }
+        else {
+            $result.AgentNameOkay = $getResult.AgentName -eq $this.AgentName;
+        }        
+        $result.AgentWorkFolderOkay = $this.WorkFolder -eq $getResult.WorkFolder;
+        $result.AgentUrlOkay = $this.serverUrl -eq $getResult.serverUrl;
+        if ($this.AgentVersion -eq "latest") {
+            if ($this.serverUrl.Length -gt 0) {
+                $versionObject = $this.getLatestVersion($this.getAllAgentThatAreAvabiled($this.serverUrl), $this.AgentPlatform).version;
+                $version = $versionObject.major.ToString() + "." + $versionObject.minor.ToString() + "." + $versionObject.patch.ToString();
+                $result.AgentVersionOkay = $getResult.AgentVersion -eq $version;
+            }
+            else {
+                $result.AgentVersionOkay = $false;
+            }
+            
+        }
+        else {
+            $result.AgentVersionOkay = $this.AgentVersion -eq $getResult.AgentVersion;
+        }
+        return result;
+    }
+
     [void] installAgent([string] $configureString) {
         Write-Verbose ("Configure Agent with this parameters: " + $configureString);        
         $fullString = ($this.AgentFolder + "\config.cmd") + " " + $configureString;
