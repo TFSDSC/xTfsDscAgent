@@ -11,33 +11,34 @@ enum AuthMode{
 [DscResource()]
 class xTfsDscAgent {
     [DscProperty(Key)]
-    [string]$AgentFolder
+    [string]$AgentFolder;
     [DscProperty(Mandatory)]
-    [Ensure]$Ensure
+    [Ensure]$Ensure;
     # https://tfs.t-systems.eu/
     [DscProperty(Mandatory)]
-    [string] $serverUrl
+    [string] $serverUrl;
     # 2.117.2
     [DscProperty()]
-    [string] $AgentVersion = "latest"
+    [string] $AgentVersion = "latest";
     [DscProperty()]
-    [string] $AgentPlatform = "win7-x64"
+    [string] $AgentPlatform = "win7-x64";
     [DscProperty()]
-    [string] $AgentPool
+    [string] $AgentPool;
     [DscProperty()]
-    [string] $AgentName = "default"
+    [string] $AgentName = "default";
     [DscProperty()]
     [int] $AgentAuth = [AuthMode]::Integrated;
     [DscProperty()]
-    [bool] $AgentRunAsService = $false
+    [bool] $AgentRunAsService = $false;
     [DscProperty()]
-    [string] $WorkFolder = "_work"    
+    [string] $WorkFolder = "_work";   
     [DscProperty()]
-    [PsCredential] $AgentUser
+    [PsCredential] $AgentUser;
     [DscProperty()]
-    [string] $UserToken
+    [string] $UserToken;
     [DscProperty()]
     [bool] $ReplaceAgent = $false;
+
     [void] prepearePowershell() {
         # I don't know why but sometimes the powershell can't create a secure channel.
         # thanks to the help from here: https://stackoverflow.com/questions/41618766/powershell-invoke-webrequest-fails-with-ssl-tls-secure-channel
@@ -46,11 +47,12 @@ class xTfsDscAgent {
             [Net.SecurityProtocolType]::Tls                
     }    
     [void] Set() {
-        $this.prepearePowershell();
+        $this.prepearePowershell();  
+        $this.ToStringVerbose();
         if ($this.Ensure -eq [Ensure]::Present) {
             $testResult = $this.getTestResult();
-            if (!$testResult.AgentFolderOkay) {
-                Write-Verbose "The AgentFolder doesn't exsists";
+            if (!$testResult.AgentFolderOkay -or (Get-ChildItem -Path $this.AgentFolder).Length -eq 0) {
+                Write-Verbose "The AgentFolder doesn't exsists or is empty.";
                 mkdir $this.AgentFolder -Force;
                 if (!(Test-Path $this.AgentFolder) -or (Get-ChildItem $this.AgentFolder).Length -eq 0) {
                     #install
@@ -61,16 +63,15 @@ class xTfsDscAgent {
                     $this.installAgent($this.getConfigurationString());                    
                 }
             }
-            if (!$testResult.AgentVersionOkay) {
+            elseif (!$testResult.AgentVersionOkay) {
                 Write-Verbose ("The Agent Version isn't " + $this.AgentVersion);                
                 #first uninstall current Agentversion
                 $this.installAgent($this.getRemoveString());
                 Remove-Item $this.AgentFolder -Recurse -Force;
                 #then install again                
                 $this.Set();
-            }
-            
-            if (!$testResult.AgentNameOkay -or !$testResult.AgentWorkFolderOkay -or !$testResult.AgentUrlOkay) {
+            }            
+            elseif (!$testResult.AgentNameOkay -or !$testResult.AgentWorkFolderOkay -or !$testResult.AgentUrlOkay) {
                 Write-Verbose ("The Agent isn't configured rigth.");
                 #here we must remove the agent
                 $this.installAgent($this.getRemoveString());
@@ -83,8 +84,7 @@ class xTfsDscAgent {
             }
             else {
                 Write-Verbose "Don't start the agent, because the windows service start automatic.";
-            }
-                
+            }                
         }
         else {
             #uninstall
@@ -94,6 +94,7 @@ class xTfsDscAgent {
     }
     [bool] Test() {
         $this.prepearePowershell();
+        $this.ToStringVerbose();
         $testResult = $this.getTestResult();
         $isPresent = $true;
         if (!$testResult.AgentFolderOkay) {
@@ -126,6 +127,7 @@ class xTfsDscAgent {
     }
     [xTfsDscAgent]Get() {
         $this.prepearePowershell();
+        $this.ToStringVerbose();
         $result = [xTfsDscAgent]::new();         
         $result.AgentFolder = $this.AgentFolder        
         $result.ReplaceAgent = $false    
@@ -143,13 +145,18 @@ class xTfsDscAgent {
         }
         return $result;
     }
+    [void]ToStringVerbose(){        
+        $propertyNames = $this | Get-Member | ?{$_.MemberType -like "Property"} | %{$_.Name};
+        $propertyNames | %{Write-Verbose $_};
+        $propertyNames | %{Select-Object -InputObject $this -ExpandProperty $_} | %{Write-Verbose $_ -Verbose};
+    }
     [PSCustomObject] getTestResult() {
         $result = [PSCustomObject]@{
-            $AgentFolderOkay = $false,
-            $AgentVersionOkay = $false,
-            $AgentNameOkay = $false,
-            $AgentWorkFolderOkay = $false,
-            $AgentUrlOkay = $false
+            AgentFolderOkay = $false
+            AgentVersionOkay = $false
+            AgentNameOkay = $false
+            AgentWorkFolderOkay = $false
+            AgentUrlOkay = $false
         }
         $getResult = $this.Get();
         if ((Test-Path $this.AgentFolder)) {
@@ -163,6 +170,7 @@ class xTfsDscAgent {
         }        
         $result.AgentWorkFolderOkay = $this.WorkFolder -eq $getResult.WorkFolder;
         $result.AgentUrlOkay = $this.serverUrl -eq $getResult.serverUrl;
+        Write-Verbose ("The Version: " + $getResult.AgentVersion + " Should be: " + $this.AgentVersion);
         if ($this.AgentVersion -eq "latest") {
             if ($this.serverUrl.Length -gt 0) {
                 $versionObject = $this.getLatestVersion($this.getAllAgentThatAreAvabiled($this.serverUrl), $this.AgentPlatform).version;
@@ -171,30 +179,24 @@ class xTfsDscAgent {
             }
             else {
                 $result.AgentVersionOkay = $false;
-            }
-            
+            }            
         }
         else {
+            # this doesn't working. Why?            
             $result.AgentVersionOkay = $this.AgentVersion -eq $getResult.AgentVersion;
         }
-        return result;
+        return $result;
     }
 
     [void] installAgent([string] $configureString) {
         Write-Verbose ("Configure Agent with this parameters: " + $configureString);        
         $fullString = ($this.AgentFolder + "\config.cmd") + " " + $configureString;
         $bytes = [System.Text.Encoding]::Unicode.GetBytes($fullString)
-        $encodedCommand = [Convert]::ToBase64String($bytes)
+        #$encodedCommand = [Convert]::ToBase64String($bytes)
         # & powershell.exe -encodedCommand $encodedCommand;
         Write-Verbose ("Start installation: " + (Get-Date));
         $process = Start-Process ($this.AgentFolder + "\config.cmd") -ArgumentList $configureString -Verbose -Debug -PassThru;
-        $process.WaitForExit();  
-        $testpath = $this.AgentFolder + ".agent";
-        Write-Verbose $testpath;
-        while ((Test-Path $testpath) -ne $true) {
-            Write-Verbose "Wait while agent will install.";
-            Start-Sleep -Seconds 5;   
-        }        
+        $process.WaitForExit();             
         Write-Verbose ("Installation success" + (Get-Date));
     }
     [void] startAgent() {        
@@ -301,7 +303,7 @@ class xTfsDscAgent {
     }
     [PsCustomObject] getspecifivVersion([PsCustomObject] $agents, [string] $version, [string] $platform) {
         $splitedVersion = $version.Split(".")
-        $result = $agents | 
+        [Array]$result = $agents | 
             Where-Object {$_.type -eq "agent" -and $_.platform -eq $platfrom -and $_.version.major -eq $splitedVersion[0] -and $_.version.minor -eq $splitedVersion[1] -and $_.version.patch -eq $splitedVersion[2] };
         if ($result.Length -eq 0) {
             throw "version are not found! Maybe it is not compatible with your TFS version!";
