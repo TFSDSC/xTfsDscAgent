@@ -89,7 +89,7 @@ class xTfsDscAgent {
         $present = (
             (Test-Path $this.AgentFolder) -and #the dsc have create the folder
             (Get-ChildItem $this.AgentFolder).Length -gt 0 -and # the download was success
-            (Test-Path $this.AgentFolder + "\.agent")); # the agent is configured
+            (Test-Path ($this.AgentFolder + "\.agent"))); # the agent is configured
         #TODO we must check the version number!
         if ($this.Ensure -eq [Ensure]::Present) {
             return $present;
@@ -103,23 +103,7 @@ class xTfsDscAgent {
         $this.prepearePowershell();
         $result = [xTfsDscAgent]::new();         
         $result.AgentFolder = $this.AgentFolder        
-        $result.ReplaceAgent = $false        
-        if ($this.Ensure -eq [Ensure]::Present) {
-            if ($this.Test()) {
-                $result.Ensure = [Ensure]::Present;    
-            }
-            else {
-                $result.Ensure = [Ensure]::Absent;
-            }            
-        }
-        else {
-            if ($this.Test()) {
-                $result.Ensure = [Ensure]::Absent;    
-            }
-            else {
-                $result.Ensure = [Ensure]::Present;
-            }
-        }
+        $result.ReplaceAgent = $false    
         $agentJsonpath =  $this.AgentFolder + "\.agent";
         if (Test-Path $agentJsonpath) {
             $agentJsonFile = ConvertFrom-Json -InputObject (Get-Content $agentJsonpath -Raw);
@@ -128,6 +112,9 @@ class xTfsDscAgent {
             $result.serverUrl = $agentJsonFile.serverUrl;
             $result.AgentPool = $agentJsonFile.poolId;
         }
+        #Get agentVersion
+        $result.AgentVersion = & ($this.AgentFolder + "\config.cmd") ("--version");
+
         return $result;
     }
     [void] installAgent([string] $configureString) {
