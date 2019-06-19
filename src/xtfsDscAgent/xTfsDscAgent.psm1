@@ -17,6 +17,8 @@ class xTfsDscAgent {
     # https://tfs.t-systems.eu/
     [DscProperty(Mandatory)]
     [string] $serverUrl;
+    [DscProperty()]
+    [string] $filePath;
     # 2.117.2
     [DscProperty()]
     [string] $AgentVersion = "latest";
@@ -58,6 +60,14 @@ class xTfsDscAgent {
                     #install
                     $zipPath = $this.AgentFolder + "\agent.zip";
                     $downloadUri = $this.getAgentDownLoadUri($this.serverUrl, $this.AgentVersion, $this.AgentPlatform);
+                    #dowload file from internal fileshare if filePath property has been specified
+                    if (!$this.filePath) {
+                        $this.downloadAgent($downloadUri, $zipPath);
+                    }
+                    else {
+                        Write-Verbose ("The file path is " + $this.filePath);
+                        Copy-Item -Path $this.filePath -Destination $zipPath;
+                    }
                     $this.downloadAgent($downloadUri, $zipPath);
                     $this.unpackAgentZip($zipPath);
                     $this.installAgent($this.getConfigurationString());                    
