@@ -14,7 +14,6 @@ class xTfsDscAgent {
     [string]$AgentFolder;
     [DscProperty(Mandatory)]
     [Ensure]$Ensure;
-    # https://tfs.t-systems.eu/
     [DscProperty(Mandatory)]
     [string] $serverUrl;
     [DscProperty()]
@@ -23,7 +22,7 @@ class xTfsDscAgent {
     [DscProperty()]
     [string] $AgentVersion = "latest";
     [DscProperty()]
-    [string] $AgentPlatform = "win7-x64";
+    [string] $AgentPlatform = "win-x64";
     [DscProperty()]
     [string] $AgentPool;
     [DscProperty()]
@@ -60,7 +59,6 @@ class xTfsDscAgent {
                     #install
                     $zipPath = $this.AgentFolder + "\agent.zip";
                     $downloadUri = $this.getAgentDownLoadUri($this.serverUrl, $this.AgentVersion, $this.AgentPlatform);
-                    #dowload file from internal fileshare if filePath property has been specified
                     if (!$this.filePath) {
                         $this.downloadAgent($downloadUri, $zipPath);
                     }
@@ -68,7 +66,6 @@ class xTfsDscAgent {
                         Write-Verbose ("The file path is " + $this.filePath);
                         Copy-Item -Path $this.filePath -Destination $zipPath;
                     }
-                    $this.downloadAgent($downloadUri, $zipPath);
                     $this.unpackAgentZip($zipPath);
                     $this.installAgent($this.getConfigurationString());                    
                 }
@@ -199,15 +196,14 @@ class xTfsDscAgent {
     }
 
     [void] installAgent([string] $configureString) {
-        Write-Verbose ("Configure Agent with this parameters: " + $configureString);        
-        $fullString = ($this.AgentFolder + "\config.cmd") + " " + $configureString;
+        $configureStringPasswordObfuscated = $configureString -replace '(?<=--windowslogonpassword \s*).*?(?= --)', '*****'
+        Write-Verbose ("Configure Agent with this parameters:" + $configureStringPasswordObfuscated);        
+        $fullString = ($this.AgentFolder + "\config.cmd") +" " + $configureString;
         $bytes = [System.Text.Encoding]::Unicode.GetBytes($fullString)
         #$encodedCommand = [Convert]::ToBase64String($bytes)
-        # & powershell.exe -encodedCommand $encodedCommand;
         Write-Verbose ("Start installation: " + (Get-Date));
-        $process = Start-Process ($this.AgentFolder + "\config.cmd") -ArgumentList $configureString -Verbose -Debug -PassThru;
-        $process.WaitForExit();             
-        Write-Verbose ("Installation success" + (Get-Date));
+        cmd /c "$($this.AgentFolder)\config.cmd $configureString"
+        Write-Verbose ("Installation completed: $(Get-Date)");
     }
     [void] startAgent() {        
         $startProgrammPath = $this.AgentFolder + "run.cmd";    
@@ -290,6 +286,7 @@ class xTfsDscAgent {
         return $false;
         # we must find a way to do this!
     }
+    
     [void] unpackAgentZip([string] $zipPath) {
         Expand-Archive -Path $zipPath -DestinationPath $this.AgentFolder
         Remove-Item $zipPath
