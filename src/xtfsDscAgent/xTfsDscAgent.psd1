@@ -12,7 +12,7 @@
     RootModule = 'xTfsDscAgent.psm1'
     
     # Version number of this module.
-    ModuleVersion = '1.0.70'
+    ModuleVersion = '1.0.73'
     
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -30,7 +30,7 @@
     Copyright = '(c) 2017 Paul. Alle Rechte vorbehalten.'
     
     # Description of the functionality provided by this module
-    Description = 'xTfsDscAgent is a Powershell Desire-State Module to install an configure a TFS / VSTS Build Agents.'
+    Description = 'DSC Resource for TFS Agent'
     
     # Minimum version of the Windows PowerShell engine required by this module
     # PowerShellVersion = ''
@@ -122,6 +122,4 @@
     # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
     # DefaultCommandPrefix = ''
     
-    }
-    
-    
+    }    
