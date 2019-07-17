@@ -202,7 +202,7 @@ class xTfsDscAgent {
         $bytes = [System.Text.Encoding]::Unicode.GetBytes($fullString)
         #$encodedCommand = [Convert]::ToBase64String($bytes)
         Write-Verbose ("Start installation: " + (Get-Date));
-        cmd /c "$($this.AgentFolder)\config.cmd $configureString"
+        cmd /c "$($this.AgentFolder)\config.cmd $configureString";
         Write-Verbose ("Installation completed: $(Get-Date)");
     }
     [void] startAgent() {        
