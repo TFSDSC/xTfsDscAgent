@@ -8,7 +8,7 @@ $psdData.ModuleVersion = $versionParts -join ".";
 
 Update-ModuleManifest -ModuleVersion $psdData.ModuleVersion -Path ($psdDictionary + "\" + $psdFileName);
 
-$outModuleFolder = ".\out\" + $psdData.ModuleVersion;
+$outModuleFolder = ".\out\xTfsDscAgent\" + $psdData.ModuleVersion;
 $dscFolderName = "xTfsDscAgent" + "_" + $psdData.ModuleVersion;
 $outDSCFolder = ".\out\" + $dscFolderName;
 mkdir ($outModuleFolder) -Force -Verbose;
