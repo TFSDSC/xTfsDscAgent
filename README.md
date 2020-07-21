@@ -22,9 +22,9 @@ After this you can use the xTfsDscAgent to configure the agents. In the followin
 | AgentRunAsService | false     | This is a option to run the agent in a windows service. This option only works on windows! The defualt is false.                                                                                               |
 | WorkFolder        | false     | Here you can set a custom path. In this Path the Agent will do the work from the build and release jobs from VSTS / TFS. The default option is '\_work' in the agentfolder.                                    |
 | AgentUser         | true      | You you must enter the credetials of the service account that have acess to register new agents and run builds. The password is only needed for some auth mechanics! See the TFS Agent doucmentation for this. |
-| UserToken         | false     | Here you can paste a PAT. This is only use for PAT auth! Default is empty                                                                                                                                      |
+| UserToken         | false     | Here you can paste a PAT. This is only use for PAT auth! Default is empty. **Important** This must be a token for 'All accessible organizations' if it not the deprovisioning will fail!                   |
 | ReplaceAgent      | false     | This define is the registrion can override exsisting registions with the same agent name. The default is false                                                                                                 |
-| filePath | false | Define a path to a downloaded agent ZIP file is. It's recommended to use this option in offline environments. (or in proxy environments) |
+| filePath          | false     | Define a path to a downloaded agent ZIP file is. It's recommended to use this option in offline environments. (or in proxy environments)                                                                       |
 
 # Example
 
@@ -99,13 +99,10 @@ Start-DscConfiguration .\mofs -Verbose -Wait
 # Build and Test
 
 To build the project run the `build.ps1` in the root folder. It will automatically increase the module version number. So you can easy update in your test and dev environment if your changes work.
-After this you have a `out` folder with the module in it. This folder you can add to your powershell environment to test the resource. You can do this with the following lines:
+After this you have a `out` folder with the module in it. This must be copied to the modules folder:
 
 ```powershell
-$path = Join-Path $pwd.Path -ChildPath "out";
-if ($env:PSModulePath -notlike "*$path*") {
-	$env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$path";
-}
+Copy-Item -Recurse -Force 'out/xTfsDscAgent' -Container "C:\Program Files\WindowsPowerShell\Modules"
 ```
 
 After this you can compile your configuration with your own version of xTfsDscAgent.
