@@ -1,9 +1,11 @@
-# Introduction
+# xTfsDscAgent
+
+## Introduction
 
 xTfsDscAgent is a Powershell Desire-State Module to install an configure a TFS / VSTS Build Agents.
 You can use this to automate the provisinig of new Agents as you need it.
 
-# Getting Started
+## Getting Started
 
 To start it is helpful to know about DSC and know how it works. [Here](https://docs.microsoft.com/en-us/powershell/dsc/overview) is a good documentation for this.
 
@@ -27,7 +29,7 @@ After this you can use the xTfsDscAgent to configure the agents. In the followin
 | filePath          | false     | Define a path to a downloaded agent ZIP file is. It's recommended to use this option in offline environments. (or in proxy environments)                                                                       |
 | CollectionName | true | Define the name of your project collection / organisation. |
 
-# Example
+## Example
 
 Important: First install this powershell module in a psmodule path!
 Here you can see a example for a config for a agent:
@@ -97,7 +99,7 @@ Start-DscConfiguration .\mofs -Verbose -Wait
 
 ```
 
-# Build and Test
+## Build and Test
 
 To build the project run the `build.ps1` in the root folder. It will automatically increase the module version number. So you can easy update in your test and dev environment if your changes work.
 After this you have a `out` folder with the module in it. This must be copied to the modules folder:
@@ -108,13 +110,13 @@ Copy-Item -Recurse -Force 'out/xTfsDscAgent' -Container "C:\Program Files\Window
 
 After this you can compile your configuration with your own version of xTfsDscAgent.
 
-## Tests
+### Tests
 
 Don't use them currently is better for you. If you really want use them you need a TFS / Azure DevOps installation and must changes the lines that referee to it in the test file. Then you must set two user environment variables with username and password to login at the TFS / Azure DevOps Server.
 
 So just don't use them. I will rewrite them sometime in the feature.
 
-# Contribute
+## Contribute
 
 TODO: Explain how other users and developers can contribute to make your code better.
 
