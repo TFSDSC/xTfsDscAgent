@@ -25,6 +25,7 @@ After this you can use the xTfsDscAgent to configure the agents. In the followin
 | UserToken         | false     | Here you can paste a PAT. This is only use for PAT auth! Default is empty. **Important** This must be a token for 'All accessible organizations' if it not the deprovisioning will fail!                   |
 | ReplaceAgent      | false     | This define is the registrion can override exsisting registions with the same agent name. The default is false                                                                                                 |
 | filePath          | false     | Define a path to a downloaded agent ZIP file is. It's recommended to use this option in offline environments. (or in proxy environments)                                                                       |
+| CollectionName | true | Define the name of your project collection / organisation. |
 
 # Example
 
