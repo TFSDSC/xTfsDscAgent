@@ -9,13 +9,14 @@ To start it is helpful to know about DSC and know how it works. [Here](https://d
 To write a config for your agent you must import this Module in your configuratoin.
 After this you can use the xTfsDscAgent to configure the agents. In the following table you can see what parameters we currently support:  
 
-| Parameter | Requiered | Desciprion |
+| Parameter | Requiered | Description |
 | --------- | --------- | ---------- |
 | Agentfolder| true | The folder in this the agent will install. This is the key for DSC tho identify is the agent currently there|
 | Ensure | true | This is a default DSC Parameter, that describe if the configuration must add or remove the agent. |
 | serverUrl | true | This is the url for the VSTS or TFS server. Importent: only input the server url! Dont add the collection name or somethink like this! |
 | AgentVersion | false | The Agentversion you want to install and configure. The default is latest. |
 | AgentPool | false | The AgentPool the agent joins after installation. The default is default |
+| Deploymentpool | false | The Deploymentpool the agent joins after installation. |
 | AgentName | false | Here you can define a custom name for the agent. The Default is 'default-' and a Guid |
 | AgentAuth | false | This is a option to use all supported auth-options for TFS or VSTS. The Default is 'Integrated'. (This you must change for VSTS!) |
 | AgentRunAsService | false | This is a option to run the agent in a windows service. This option only works on windows! The defualt is false.
@@ -29,22 +30,49 @@ Important: First install this powershell module in a psmodule path!
 Here you can see a example for a config for a agent:  
 
 ```PS
-Configuration sampleConfig {
+Configuration sampleConfigBuildAgent {
 
     param(
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
         [PsCredential] $agentCredential
     )    
-    Import-DscResource -ModuleName xTfsDscAgent -ModuleVersion 1.0.1    
-    Node $AllNodes.Where{$_.Role -eq 'TfsAgent'}.NodeName
+    Import-DscResource -ModuleName xTfsDscAgent -ModuleVersion 1.0.74
+    Node $AllNodes.Where{$_.Role -eq 'TfsBuildAgent'}.NodeName
     {
         
-        xTfsDscAgent agent {
+        xTfsDscBuildAgent buildAgent {
             AgentFolder = "C:\Agent\"
             Ensure      = "Present"
             serverUrl   = "https://tfs201801.home01.local/"                
             AgentPool   = "default"                
+            AgentUser   = $agentCredential            
+        }
+
+        LocalConfigurationManager {
+            CertificateID = $node.Thumbprint
+        }
+    }
+
+    
+}
+
+Configuration sampleConfigDeployAgent {
+
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [PsCredential] $agentCredential
+    )    
+    Import-DscResource -ModuleName xTfsDscAgent -ModuleVersion 1.0.74
+    Node $AllNodes.Where{$_.Role -eq 'TfsDeployAgent'}.NodeName
+    {
+        
+        xTfsDscDeployAgent deployAgent {
+            AgentFolder = "C:\Agent\"
+            Ensure      = "Present"
+            serverUrl   = "https://tfs201801.home01.local/"                
+            AgentPool   = "deployPool"                
             AgentUser   = $agentCredential            
         }
 
@@ -76,7 +104,8 @@ mkdir .\mofs -Force
 #Loding config
 . .\sampleConfig
 ##compile config
-sampleConfig -ConfigurationData $ConfigData -agentCredential (Get-Credential) -OutputPath .\mofs
+sampleConfigBuildAgent -ConfigurationData $ConfigData -agentCredential (Get-Credential) -OutputPath .\mofs
+sampleConfigDeployAgent -ConfigurationData $ConfigData -agentCredential (Get-Credential) -OutputPath .\mofs
 #Run Config
 Set-DscLocalConfigurationManager .\mofs -Verbose
 Start-DscConfiguration .\mofs -Verbose -Wait

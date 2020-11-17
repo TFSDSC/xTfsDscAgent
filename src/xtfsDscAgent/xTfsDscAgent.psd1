@@ -12,7 +12,7 @@
     RootModule = 'xTfsDscAgent.psm1'
     
     # Version number of this module.
-    ModuleVersion = '1.0.73'
+    ModuleVersion = '1.0.74'
     
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -81,7 +81,7 @@
     AliasesToExport = @()
     
     # DSC resources to export from this module
-    DscResourcesToExport = 'xTfsDscAgent'
+    DscResourcesToExport = 'xTfsDscBuildAgent', 'xTfsDscDeployAgent'
     
     # List of all modules packaged with this module
     # ModuleList = @()
